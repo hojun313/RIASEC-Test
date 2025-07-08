@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>직업 흥미 프로파일러</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutral Harmony -->
+    <!-- Application Structure Plan: The application is structured as a classic single-page application (SPA) with three distinct views: Start, Quiz, and Results. This linear, step-by-step flow is the most intuitive structure for a test or quiz, guiding the user from introduction to completion without distraction. The 'Start' view sets the context. The 'Quiz' view focuses the user on one question at a time to prevent cognitive overload. The 'Results' view provides a comprehensive summary with both visual (chart) and textual (descriptions) information for easy understanding. This design choice directly supports the primary user goal: to complete the test and understand the outcome efficiently. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: 60 interest questions. -> Goal: Gather user preferences. -> Viz/Method: Radio button form. -> Interaction: Select one of five options per question, click 'Next'. -> Justification: Standard, clear, and universally understood method for multiple-choice quizzes.
+        - Report Info: Final scores for 6 RIASEC types. -> Goal: Compare the user's interest levels across all categories. -> Viz/Method: Vertical Bar Chart. -> Interaction: Hover over bars to see exact scores in tooltips. -> Justification: A bar chart is the most effective visualization for comparing the magnitude of discrete categories, making it easy for users to see their dominant types at a glance. -> Library: Chart.js.
+        - Report Info: Top 3 interest types, descriptions, and job examples. -> Goal: Inform the user about their primary interest areas in detail. -> Viz/Method: Structured text blocks with headings and lists. -> Interaction: Static reading. -> Justification: Presents detailed, hierarchical information in a clean, legible format that is easy to digest after seeing the initial chart overview.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #FDFBF8; /* Warm off-white */
+            color: #4B4B4B; /* Dark Gray */
+        }
+        .btn-primary {
+            background-color: #A88B79; /* Muted Brown */
+            color: #FFFFFF;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #8E7361; /* Darker Muted Brown */
+        }
+        .radio-label:has(input:checked) {
+            background-color: #D6C3B7; /* Light Brown */
+            border-color: #A88B79;
+            color: #4B4B4B;
+        }
+        .progress-bar-fill {
+            background-color: #A88B79;
+            transition: width 0.5s ease-in-out;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <main class="w-full max-w-4xl mx-auto">
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg">
+            <h1 class="text-4xl font-bold text-[#8E7361] mb-4">나의 직업 흥미 유형 찾기</h1>
+            <p class="text-lg mb-8 max-w-2xl mx-auto">
+                이 검사는 60개의 간단한 질문을 통해 당신의 흥미를 분석하고, Holland의 RIASEC 모델에 기반한 6가지 직업 흥미 유형 중 당신에게 가장 적합한 유형을 알려줍니다.
+            </p>
+            <p class="text-md text-gray-600 mb-8">잠시 시간을 내어 당신의 흥미를 탐색해 보세요.</p>
+            <button id="start-btn" class="btn-primary font-bold py-3 px-12 rounded-full text-xl shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-all">
+                검사 시작하기
+            </button>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quiz-screen" class="hidden p-6 md:p-10 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg">
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-sm font-semibold text-[#A88B79]">진행률</p>
+                    <p id="progress-text" class="text-sm font-bold"></p>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progress-bar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <p class="text-2xl md:text-3xl font-bold mb-8" id="question-text"></p>
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-5 gap-3 max-w-3xl mx-auto">
+                    <!-- Options will be generated here -->
+                </div>
+            </div>
+
+            <div class="text-center mt-10">
+                <button id="next-btn" class="btn-primary font-bold py-3 px-12 rounded-full text-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    다음
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="hidden p-6 md:p-10 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg">
+            <div class="text-center mb-10">
+                <h2 class="text-4xl font-bold text-[#8E7361] mb-2">검사 결과</h2>
+                <p class="text-lg">당신의 상위 3가지 흥미 유형입니다.</p>
+            </div>
+            
+            <div class="mb-12">
+                 <div class="chart-container">
+                    <canvas id="results-chart"></canvas>
+                </div>
+            </div>
+
+            <div id="results-details" class="space-y-8">
+                <!-- Result details will be generated here -->
+            </div>
+
+            <div class="text-center mt-12">
+                <button id="restart-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-12 rounded-full text-lg transition-colors">
+                    다시 검사하기
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const quizData = {
+                questions: [
+                    { text: "부엌 수납장 만들기", type: "R" }, { text: "벽돌이나 타일 깔기", type: "R" }, { text: "농장에서 일하기", type: "R" }, { text: "많은 사람을 위해 요리하기", type: "R" }, { text: "전자 부품 조립하기", type: "R" }, { text: "트럭 운전하여 소포 배달하기", type: "R" }, { text: "선적 전 부품 품질 테스트하기", type: "R" }, { text: "새는 수도꼭지 수리하기", type: "R" }, { text: "조경팀에서 일하기", type: "R" }, { text: "생산 라인에서 기계 작동하기", type: "R" },
+                    { text: "신약 개발하기", type: "I" }, { text: "인체 구조 연구하기", type: "I" }, { text: "질병 식별을 위한 실험실 테스트하기", type: "I" }, { text: "동물 행동 연구하기", type: "I" }, { text: "화재 원인 조사하기", type: "I" }, { text: "새로운 제품 발명하기", type: "I" }, { text: "화석 연대 측정하기", type: "I" }, { text: "생물학 실험실에서 일하기", type: "I" }, { text: "날씨를 더 잘 예측하는 방법 개발하기", type: "I" }, { text: "과학 기사 작성하기", type: "I" },
+                    { text: "노래 작곡하기", type: "A" }, { text: "연극 연출하기", type: "A" }, { text: "새로운 비디오 게임 디자인하기", type: "A" }, { text: "영화 특수 효과 만들기", type: "A" }, { text: "건물에 벽화 그리기", type: "A" }, { text: "소설 쓰기", type: "A" }, { text: "패션 디자이너 되기", type: "A" }, { text: "영화 편집하기", type: "A" }, { text: "밴드에서 공연하기", type: "A" }, { text: "책 삽화 그리기", type: "A" },
+                    { text: "초등학교 수업 가르치기", type: "S" }, { text: "개인적 또는 정서적 문제 겪는 사람 돕기", type: "S" }, { text: "사람들에게 진로 상담해주기", type: "S" }, { text: "병원에서 간호 업무 수행하기", type: "S" }, { text: "고등학교 수업 가르치기", type: "S" }, { text: "장애인과 함께 일하기", type: "S" }, { text: "약물 또는 알코올 문제 있는 사람 돕기", type: "S" }, { text: "놀이터에서 아이들 활동 감독하기", type: "S" }, { text: "개에게 새로운 재주 가르치기", type: "S" }, { text: "노인들의 일상 활동 돕기", type: "S" },
+                    { text: "자신만의 사업 시작하기", type: "E" }, { text: "사업 계약 협상하기", type: "E" }, { text: "다른 사람의 업무 감독하기", type: "E" }, { text: "대규모 그룹 앞에서 연설하기", type: "E" }, { text: "공직에 출마하기", type: "E" }, { text: "회사에 신제품 판매하기", type: "E" }, { text: "대기업 관리자 되기", type: "E" }, { text: "소매점 관리하기", type: "E" }, { text: "판사 되기", type: "E" }, { text: "소송에서 의뢰인 대리하기", type: "E" },
+                    { text: "회사의 재무 기록 관리하기", type: "C" }, { text: "컴퓨터를 사용하여 세금 처리하기", type: "C" }, { text: "회사의 급여 명세서 생성하기", type: "C" }, { text: "회사의 재고 추적하기", type: "C" }, { text: "프로젝트 비용 계산하기", type: "C" }, { text: "관리자를 위해 편지와 보고서 타이핑하기", type: "C" }, { text: "사무실 우편물 처리하기", type: "C" }, { text: "관리자를 위해 약속 잡기", type: "C" }, { text: "재무 보고서 오류 수정하기", type: "C" }, { text: "컴퓨터 시스템에 데이터 입력하기", type: "C" }
+                ],
+                options: [
+                    { text: "매우 싫음", value: 1 }, { text: "싫음", value: 2 }, { text: "보통", value: 3 }, { text: "좋음", value: 4 }, { text: "매우 좋음", value: 5 }
+                ],
+                types: {
+                    R: { name: "현실형 (Realistic)", description: "기계, 도구, 동물, 식물 등 실제적인 사물을 다루는 명확하고 질서정연한 활동을 선호하며, 솔직하고 성실한 성격을 가집니다.", jobs: ["엔지니어", "요리사", "운동선수", "자동차 정비사", "소방관", "조경사"] },
+                    I: { name: "탐구형 (Investigative)", description: "아이디어를 활용해 탐구하고 분석하며, 과학적이고 수학적인 문제 해결을 즐깁니다. 논리적이고 호기심이 많습니다.", jobs: ["과학자", "의사", "프로그래머", "수의사", "데이터 분석가", "경제학자"] },
+                    A: { name: "예술형 (Artistic)", description: "창의적이고 독창적이며, 비체계적인 환경에서 자신을 자유롭게 표현하는 것을 좋아합니다. 상상력이 풍부하고 감성적입니다.", jobs: ["예술가", "작가", "디자이너", "음악가", "배우", "사진작가"] },
+                    S: { name: "사회형 (Social)", description: "다른 사람들을 돕고, 가르치고, 상담하는 등 타인과 상호작용하는 활동을 선호합니다. 친절하고 이해심이 많습니다.", jobs: ["교사", "간호사", "상담사", "사회복지사", "인사 담당자", "물리치료사"] },
+                    E: { name: "진취형 (Enterprising)", description: "다른 사람을 설득하고, 이끌고, 관리하며 조직의 목표를 달성하는 활동에서 즐거움을 느낍니다. 야망 있고 사교적입니다.", jobs: ["경영인", "변호사", "영업사원", "부동산 중개인", "홍보 전문가", "정치인"] },
+                    C: { name: "사무형 (Conventional)", description: "자료를 체계적으로 정리하고, 규칙과 절차에 따라 정확하고 꼼꼼하게 일하는 것을 선호합니다. 신중하고 계획적입니다.", jobs: ["회계사", "사서", "사무원", "은행원", "웹사이트 편집자", "보험 심사관"] }
+                }
+            };
+
+            const startScreen = document.getElementById('start-screen');
+            const quizScreen = document.getElementById('quiz-screen');
+            const resultsScreen = document.getElementById('results-screen');
+            const startBtn = document.getElementById('start-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const restartBtn = document.getElementById('restart-btn');
+
+            let currentQuestionIndex = 0;
+            let userAnswers = [];
+            let chartInstance = null;
+
+            startBtn.addEventListener('click', startQuiz);
+            nextBtn.addEventListener('click', nextQuestion);
+            restartBtn.addEventListener('click', restartQuiz);
+
+            function startQuiz() {
+                currentQuestionIndex = 0;
+                userAnswers = [];
+                startScreen.classList.add('hidden');
+                resultsScreen.classList.add('hidden');
+                quizScreen.classList.remove('hidden');
+                displayQuestion();
+            }
+
+            function displayQuestion() {
+                const question = quizData.questions[currentQuestionIndex];
+                const progress = (currentQuestionIndex / quizData.questions.length) * 100;
+
+                document.getElementById('question-text').textContent = `${currentQuestionIndex + 1}. ${question.text}`;
+                document.getElementById('progress-bar').style.width = `${progress}%`;
+                document.getElementById('progress-text').textContent = `${currentQuestionIndex + 1} / ${quizData.questions.length}`;
+
+                const optionsContainer = document.getElementById('options-container');
+                optionsContainer.innerHTML = '';
+                quizData.options.forEach(option => {
+                    const optionId = `q${currentQuestionIndex}-v${option.value}`;
+                    optionsContainer.innerHTML += `
+                        <label for="${optionId}" class="radio-label border-2 border-gray-300 rounded-lg p-4 text-center cursor-pointer transition-all hover:border-[#A88B79] hover:bg-[#F0E9E4]">
+                            <input type="radio" name="option" value="${option.value}" id="${optionId}" class="sr-only">
+                            <span class="font-medium">${option.text}</span>
+                        </label>
+                    `;
+                });
+
+                document.querySelectorAll('input[name="option"]').forEach(radio => {
+                    radio.addEventListener('change', () => {
+                        nextBtn.disabled = false;
+                    });
+                });
+
+                if (currentQuestionIndex === quizData.questions.length - 1) {
+                    nextBtn.textContent = '결과 보기';
+                } else {
+                    nextBtn.textContent = '다음';
+                }
+                nextBtn.disabled = true;
+            }
+
+            function nextQuestion() {
+                const selectedOption = document.querySelector('input[name="option"]:checked');
+                if (!selectedOption) return;
+
+                userAnswers.push({
+                    type: quizData.questions[currentQuestionIndex].type,
+                    value: parseInt(selectedOption.value)
+                });
+
+                currentQuestionIndex++;
+                if (currentQuestionIndex < quizData.questions.length) {
+                    displayQuestion();
+                } else {
+                    showResults();
+                }
+            }
+
+            function showResults() {
+                const scores = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 };
+                userAnswers.forEach(answer => {
+                    scores[answer.type] += answer.value;
+                });
+
+                const sortedScores = Object.entries(scores)
+                    .map(([type, score]) => ({ type, score }))
+                    .sort((a, b) => b.score - a.score);
+
+                quizScreen.classList.add('hidden');
+                resultsScreen.classList.remove('hidden');
+                
+                displayResults(sortedScores);
+            }
+
+            function displayResults(sortedScores) {
+                const resultsDetails = document.getElementById('results-details');
+                resultsDetails.innerHTML = '';
+                
+                const top3 = sortedScores.slice(0, 3);
+                top3.forEach((result, index) => {
+                    const typeInfo = quizData.types[result.type];
+                    resultsDetails.innerHTML += `
+                        <div class="bg-white p-6 rounded-xl shadow">
+                            <h3 class="text-2xl font-bold text-[#A88B79] mb-3">${index + 1}. ${typeInfo.name}</h3>
+                            <p class="mb-4">${typeInfo.description}</p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="font-semibold mr-2">추천 직업:</span>
+                                ${typeInfo.jobs.map(job => `<span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">${job}</span>`).join('')}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                const ctx = document.getElementById('results-chart').getContext('2d');
+                const labels = sortedScores.map(s => quizData.types[s.type].name);
+                const data = sortedScores.map(s => s.score);
+
+                if (chartInstance) {
+                    chartInstance.destroy();
+                }
+
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '흥미 유형 점수',
+                            data: data,
+                            backgroundColor: [
+                                'rgba(168, 139, 121, 0.7)',
+                                'rgba(168, 139, 121, 0.6)',
+                                'rgba(168, 139, 121, 0.5)',
+                                'rgba(214, 195, 183, 0.4)',
+                                'rgba(214, 195, 183, 0.3)',
+                                'rgba(214, 195, 183, 0.2)'
+                            ],
+                            borderColor: [
+                                'rgba(168, 139, 121, 1)',
+                                'rgba(168, 139, 121, 1)',
+                                'rgba(168, 139, 121, 1)',
+                                'rgba(214, 195, 183, 1)',
+                                'rgba(214, 195, 183, 1)',
+                                'rgba(214, 195, 183, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                max: 50,
+                                grid: {
+                                    display: false
+                                }
+                            },
+                             y: {
+                                grid: {
+                                    display: false
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `점수: ${context.raw}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function restartQuiz() {
+                resultsScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
